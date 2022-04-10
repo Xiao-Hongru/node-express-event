@@ -17,7 +17,7 @@ const addArticle = (req, res) => {
     ...req.body,
   };
   const sql = "INSERT INTO ev_articles SET ?";
-  
+
   db.query(sql, articleInfo, (err, results) => {
     if (err) return res.cc(err);
     if (results.affectedRows !== 1) return res.cc("添加文章失败");
@@ -30,34 +30,38 @@ const getArticleList = (req, res) => {
   const { pagenum, pagesize, cate_id, state } = req.query || {};
 
   // SQL语句
-  let whereSql = " WHERE is_delete = 0 ";
-  if (cate_id && state) {
-    whereSql += `&& cate_id = ${cate_id} && state = "${state}"`;
-  } else if (cate_id) {
-    whereSql += `&& cate_id = ${cate_id}`;
-  } else if (state) {
-    whereSql += `&& state = "${state}"`;
-  }
+  const cateSql = cate_id ? ` && cate_id = ${cate_id}` : "";
+  const stateSql = state ? ` && state = ${state}` : "";
+  let whereSql = " WHERE is_delete = 0 " + cateSql + stateSql;
   let limitSql = ` LIMIT ${(pagenum - 1) * pagesize} , ${pagesize}`;
+
   const selectSql = "SELECT * FROM ev_articles" + whereSql + limitSql;
   const countSql = "SELECT count(*) as total FROM ev_articles" + whereSql;
 
   // 分别查找文章总数、文章列表
-  db.query(countSql, (err, results) => {
-    if (err) return res.cc(err);
-    if (results.length !== 1) return res.cc("错误");
-    const total = results[0].total;
-
-    db.query(selectSql, (err, data) => {
-      if (err) return res.cc(err);
-
+  let count = 0;
+  let results = {};
+  const done = (key, value) => {
+    results[key] = value;
+    count++;
+    if (count === 2) {
       return res.send({
         status: 0,
         message: "获取文章列表成功！",
-        data,
-        total,
+        data: results.data,
+        total: results.total,
       });
-    });
+    }
+  };
+
+  db.query(countSql, (err, results) => {
+    if (err) return res.cc(err);
+    if (results.length !== 1) return res.cc("错误");
+    done("total", results[0].total);
+  });
+  db.query(selectSql, (err, data) => {
+    if (err) return res.cc(err);
+    done("data", data);
   });
 };
 
@@ -113,4 +117,4 @@ module.exports = {
   deleteArticleById,
   getArticleById,
   editArticleById,
-}
+};
